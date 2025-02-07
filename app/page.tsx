@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { read, utils } from "xlsx";
 import { Button, Card, Container, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Grid, CircularProgress } from "@mui/material";
