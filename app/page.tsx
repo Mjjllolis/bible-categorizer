@@ -1,8 +1,11 @@
+"use client";
+
 import { useState } from "react";
 import { read, utils } from "xlsx";
-import { Button, Card, Container, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Grid, CircularProgress } from "@mui/material";
+import { Button, Dialog, DialogTitle, DialogContent, Card, Container, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Grid, CircularProgress } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import { styled } from "@mui/material/styles";
+import { PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import Image from "next/image";
 
 const VisuallyHiddenInput = styled("input")({
@@ -35,6 +38,9 @@ export default function Home() {
   const [questionPreview, setQuestionPreview] = useState<any[]>([]);
   const [categoryPreview, setCategoryPreview] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
 
   const handleFileUpload = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -86,126 +92,115 @@ export default function Home() {
     setLoading(false);
   };
 
+  // Aggregate results into categories for Pie Chart
+  const categoryData = results.reduce((acc, result) => {
+    const category = result.categories[0]?.name || "Uncategorized";
+    acc[category] = (acc[category] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const pieData = Object.entries(categoryData).map(([name, value]) => ({
+    name,
+    value,
+  }));
+
+  // Handle category click
+  const handlePieClick = (data: any) => {
+    setSelectedCategory(data.name);
+    setOpen(true);
+  };
+
+  // Get questions for selected category
+  const selectedQuestions = results.filter(
+    (r) => r.categories[0]?.name === selectedCategory
+  );
+
+  const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff8042", "#ffbb28"];
+
+
   return (
-    <Container maxWidth={false} sx={{ py: 4, maxWidth: "50%", backgroundColor: "#f9f9f9", textAlign: "center", minHeight: "100vh" }}>
-      <Card sx={{ position: "relative", overflow: "hidden", height: 400, display: "flex", alignItems: "center", justifyContent: "center", px: 4, backgroundImage: 'url(/Background.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', color: "white", textShadow: "2px 2px 8px rgba(0, 0, 0, 0.7)" }}>
-        <Typography variant="h3" fontWeight="bold" sx={{ textAlign: "center", px: 2, py: 1, borderRadius: 2, padding: "10px" }}>Bible Question Categorizer</Typography>
+    <Container maxWidth="md" sx={{ py: 4, backgroundColor: "#f9f9f9", minHeight: "100vh" }}>
+      <Card sx={{ p: 3, textAlign: "center", backgroundColor: "#f5f5f5" }}>
+        <Typography variant="h4" fontWeight="bold">
+          Bible Question Categorizer
+        </Typography>
       </Card>
 
-      <Card sx={{ mt: 4, p: 3, backgroundColor: "#f5f5f5", width: "100%" }}>
-        <Typography variant="h5" fontWeight="bold" align="center">Upload CSV Files</Typography>
-        <Grid container spacing={2} justifyContent="center" sx={{ mt: 2 }}>
-          <Grid item>
-            <Button component="label" variant="contained" startIcon={<CloudUploadIcon />}>Upload Questions
-              <VisuallyHiddenInput type="file" accept=".csv" onChange={(e) => handleFileUpload(e, setQuestions, setQuestionPreview, "questions")} />
-            </Button>
-          </Grid>
-          <Grid item>
-            <Button component="label" variant="contained" startIcon={<CloudUploadIcon />}>Upload Categories
-              <VisuallyHiddenInput type="file" accept=".csv" onChange={(e) => handleFileUpload(e, setCategories, setCategoryPreview, "categories")} />
-            </Button>
-          </Grid>
-        </Grid>
+      <Card sx={{ mt: 4, p: 3, textAlign: "center", backgroundColor: "#f5f5f5" }}>
+        <Typography variant="h5">Upload CSV File</Typography>
+        <Button component="label" variant="contained" startIcon={<CloudUploadIcon />} sx={{ mt: 2 }}>
+          Upload File
+          <VisuallyHiddenInput
+            type="file"
+            accept=".csv"
+            onChange={(e) => handleFileUpload(e, setQuestions, setQuestionPreview, "questions")}
+          />
+          <VisuallyHiddenInput
+            type="file"
+            accept=".csv"
+            onChange={(e) => handleFileUpload(e, setCategories, setCategoryPreview, "categories")}
+          />
+
+        </Button>
       </Card>
 
       <Grid container justifyContent="center" sx={{ mt: 3 }}>
-        <Button variant="contained" color="primary" onClick={categorizeQuestions}>Categorize Questions</Button>
+        <Button variant="contained" color="primary" onClick={categorizeQuestions} disabled={loading}>
+          {loading ? <CircularProgress size={24} /> : "Categorize Questions"}
+        </Button>
       </Grid>
 
-      {loading && (
-        <Grid container justifyContent="center" sx={{ mt: 2 }}>
-          <CircularProgress />
-        </Grid>
-      )}
-
-      {(questionPreview.length > 0 || categoryPreview.length > 0) && (
-        <Grid container spacing={2} sx={{ mt: 4 }}>
-          {/* Question Preview */}
-          {questionPreview.length > 0 && (
-            <Grid item xs={6}>
-              <Card sx={{ p: 2, backgroundColor: "#f5f5f5", height: "40vh", overflowY: "auto" }}>
-                <Typography variant="h6" fontWeight="bold">Questions Preview</Typography>
-                <TableContainer component={Paper}>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        {Object.keys(questionPreview[0]).map((key, index) => (
-                          <TableCell key={index}><strong>{key}</strong></TableCell>
-                        ))}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {questionPreview.map((row, index) => (
-                        <TableRow key={index}>
-                          {Object.values(row).map((val, i) => (
-                            <TableCell key={i}>{val as string}</TableCell>
-                          ))}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Card>
-            </Grid>
-          )}
-
-          {/* Category Preview */}
-          {categoryPreview.length > 0 && (
-            <Grid item xs={6}>
-              <Card sx={{ p: 2, backgroundColor: "#f5f5f5", height: "40vh", overflowY: "auto" }}>
-                <Typography variant="h6" fontWeight="bold">Categories Preview</Typography>
-                <TableContainer component={Paper}>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        {Object.keys(categoryPreview[0]).map((key, index) => (
-                          <TableCell key={index}><strong>{key}</strong></TableCell>
-                        ))}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {categoryPreview.map((row, index) => (
-                        <TableRow key={index}>
-                          {Object.values(row).map((val, i) => (
-                            <TableCell key={i}>{val as string}</TableCell>
-                          ))}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Card>
-            </Grid>
-          )}
-        </Grid>
-      )}
-
       {results.length > 0 && (
-        <Card sx={{ mt: 4, p: 3, backgroundColor: "#f5f5f5", width: "100%" }}>
-          <Typography variant="h5" fontWeight="bold">Results</Typography>
-          <TableContainer component={Paper} sx={{ mt: 3 }}>
+        <Card sx={{ mt: 4, p: 3, textAlign: "center", backgroundColor: "#f5f5f5" }}>
+          <Typography variant="h5" fontWeight="bold">
+            Category Distribution
+          </Typography>
+          <PieChart width={400} height={300}>
+            <Pie
+              data={pieData}
+              cx="50%"
+              cy="50%"
+              labelLine={false}
+              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              outerRadius={100}
+              fill="#8884d8"
+              dataKey="value"
+              onClick={handlePieClick}
+            >
+              {pieData.map((_, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip />
+            <Legend />
+          </PieChart>
+        </Card>
+      )}
+
+      {/* Detailed Questions Dialog */}
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>{selectedCategory} - Questions</DialogTitle>
+        <DialogContent>
+          <TableContainer component={Paper}>
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ width: "60%" }}><strong>Question</strong></TableCell>
-                  <TableCell sx={{ width: "30%" }}><strong>Category</strong></TableCell>
-                  <TableCell sx={{ width: "10%" }}><strong>Confidence</strong></TableCell>
+                  <TableCell><strong>Question</strong></TableCell>
+                  <TableCell><strong>Confidence</strong></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {results.map((result, index) => (
+                {selectedQuestions.map((result, index) => (
                   <TableRow key={index}>
                     <TableCell>{result.question}</TableCell>
-                    <TableCell>{result.categories[0]?.name || "Uncategorized"}</TableCell>
                     <TableCell>{result.categories[0]?.confidence}%</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </TableContainer>
-        </Card>
-      )}
-
+        </DialogContent>
+      </Dialog>
     </Container>
   );
 }
